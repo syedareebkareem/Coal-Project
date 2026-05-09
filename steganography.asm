@@ -23,4 +23,9 @@ xorKey db 05h  ;
 ;xorKey is used to encrypt the data
 ;we might change it to perform dynamically if time remains 
 
+pixelArray db 64 dup(200)
+; we have 8 characters
+; each character has 8 bits
+; each bit is stored in 1 pixel
+; 8(pixel) x 8(characters) = 64 pixels array 
 .code
