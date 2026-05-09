@@ -1,0 +1,16 @@
+9th May,2026
+1:30 pm
+
+Tasks have been assigned to group members.
+Areeb (Steganography): I am handling the core data hiding and extraction. 
+I will write the HIDE_MESSAGE procedure to take the encrypted message bits and embed them into the pixel array by modifying the Least Significant Bits (LSB). 
+I will also write EXTRACT_MESSAGE to read those LSBs and rebuild the encrypted characters into a buffer.
+I will generate flow of the program and test cases and video to showcase the demo.
+
+Mujeeb (Encryption): He is taking care of securing the data. He will write GET_INPUT to capture the user's message.
+He is also responsible for XOR_ENCRYPT to lock the message using an XOR key, and XOR_DECRYPT to reverse it and retrieve the original text.
+
+Marukh (UI & Integration): She is building the interface and connecting all our code together. 
+She will write DISPLAY_MENU for user options, PRINT_ARRAY to show the before and after arrays, and SHOW_RESULTS. Her biggest task is writing the MAIN procedure, which acts as the controller to link my code, 
+Mujeeb's code, and all our shared variables in the correct execution order.
+Also Report will be written by her
