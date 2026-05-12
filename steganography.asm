@@ -19,12 +19,34 @@ xorKey db 05h  ;
                             ;xorKey is used to encrypt the data
                             ;we might change it to perform dynamically if time remains 
 
+
+                            ; display data added
+                            ; 11th may,2026
+                            ; mahrukh jamal
+                            ; no editing required
+
 pixelArray db 64 dup(200)
                             ; we have 8 characters
                             ; each character has 8 bits
                             ; each bit is stored in 1 pixel
-                            ; 8(pixel) x 8(characters) = 64 pixels array 
-.code
+                            ; 8(pixel) x 8(characters) = 64 pixels array
+
+
+
+                            ; display data added
+                            ; 11th may,2026
+                            ; mahrukh jamal
+                            ; no editing required
+
+titleMsg db 13,10,'===== SECURE MESSAGE SYSTEM =====',13,10,'$'   ; title shown at program start
+menuMsg db 13,10,'1. Start',13,10,'2. Exit',13,10,'Choice: $'     ; menu options shown to user
+resultMsg db 13,10,'Recovered Message: $'                         ; label before showing extracted message
+space db ' $'                                                     ; prints space between pixel values
+newline db 13,10,'$'                                              ; moves output to next line
+
+
+
+.code  
                             ; hide message done 
                             ; 9th may,2026
                             ; syedareebkareem
@@ -131,3 +153,28 @@ loop characterLoop
 mov byte ptr [si],'$'
                             ; making sure termination is not overwritten by my program
 extractMessage endp
+
+
+
+
+
+                  ; display menu done
+                  ; 11th may,2026
+                  ; mahrukh jamal
+                           
+displayMenu proc           
+
+    lea dx,titleMsg          ; dx points to title message
+    mov ah,09h               ; DOS function to display string
+    int 21h                  ; prints titlle on screen
+
+    lea dx,menuMsg           ; dx points to menu options
+    mov ah,09h               ; DOS function to display string
+    int 21h                  ; prints menu on screen
+
+    mov ah,01h               ; DOS function for single character input
+    int 21h                  ; reads user choice and stores it in AL
+
+    ret                      ; returns to main program
+
+displayMenu endp                            
