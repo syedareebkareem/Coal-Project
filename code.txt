@@ -1,0 +1,65 @@
+; MUJEEB SECTION
+; INPUT + ENCRYPTION
+
+
+GET_INPUT PROC
+
+    LEA DX,inputMsg
+    MOV AH,09H
+    INT 21H
+
+    LEA DX,msgBuffer
+    MOV AH,0AH
+    INT 21H
+
+    MOV AL,msgBuffer+1
+    MOV msgLength,AL
+
+    RET
+
+GET_INPUT ENDP
+
+
+XOR_ENCRYPT PROC
+
+    MOV CL,msgLength
+    MOV CH,00
+    LEA SI,msgBuffer+2
+    LEA DI,encryptedBuffer
+
+ENC_LOOP:
+
+    MOV AL,[SI]
+    XOR AL,xorKey
+    MOV [DI],AL
+    INC SI
+    INC DI
+    LOOP ENC_LOOP
+
+    MOV BYTE PTR [DI],'$'
+    RET
+
+XOR_ENCRYPT ENDP
+
+; =========================================================
+
+XOR_DECRYPT PROC
+
+    MOV CL,msgLength
+    MOV CH,00
+    LEA SI,extractedBuffer
+    LEA DI,finalMessage
+
+DEC_LOOP:
+
+    MOV AL,[SI]
+    XOR AL,xorKey
+    MOV [DI],AL
+    INC SI
+    INC DI
+    LOOP DEC_LOOP
+
+    MOV BYTE PTR [DI],'$'
+    RET
+
+XOR_DECRYPT ENDP
