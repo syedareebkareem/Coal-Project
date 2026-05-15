@@ -177,4 +177,83 @@ displayMenu proc
 
     ret                      ; returns to main program
 
+
+
+
+
+
 displayMenu endp                            
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; print pixel number
+; 15th may,2026
+; mahrukh jamal
+; no editing required
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+printNumber proc
+
+    mov ah,00h
+    mov bl,100
+    div bl
+                            ; divide by 100
+
+    mov dl,al
+    add dl,48
+                            ; convert to ascii
+
+    mov ah,02h
+    int 21h
+                            ; print hundreds digit
+
+    mov al,ah
+    mov ah,00h
+
+    mov bl,10
+    div bl
+                            ; divide remainder by 10
+
+    mov dl,al
+    add dl,48
+
+    mov ah,02h
+    int 21h
+                            ; print tens digit
+
+    mov dl,ah
+    add dl,48
+
+    mov ah,02h
+    int 21h
+                            ; print ones digit
+
+    ret
+
+printNumber endp
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; show extracted result
+; 15th may,2026
+; mahrukh jamal
+; no editing required
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+showResults proc
+
+    lea dx,resultMsg
+    mov ah,09h
+    int 21h
+                            ; display recovered label
+
+    lea dx,extractedBuffer
+    mov ah,09h
+    int 21h
+                            ; display extracted message
+
+    lea dx,newline
+    mov ah,09h
+    int 21h
+
+    ret
+
+showResults endp
