@@ -177,4 +177,57 @@ displayMenu proc
 
     ret                      ; returns to main program
 
-displayMenu endp                            
+displayMenu endp 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; display pixel array
+; 15th may,2026
+; mahrukh jamal
+; no editing required
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+printArray proc
+
+    lea si,pixelArray
+                            ; si points to first pixel
+
+    mov al,messageLength
+                            ; total characters
+
+    mov bl,8
+                            ; each character has 8 bits
+
+    mul bl
+                            ; total used pixels
+
+    mov cx,ax
+                            ; cx used for loop
+
+printLoop:
+
+    mov al,[si]
+                            ; current pixel value
+
+    call printNumber
+                            ; print pixel number
+
+    lea dx,space
+    mov ah,09h
+    int 21h
+                            ; prints space
+
+    inc si
+                            ; next pixel
+
+    loop printLoop
+
+    lea dx,newline
+    mov ah,09h
+    int 21h
+                            ; move to next line
+
+    ret
+
+printArray endp
+
+
