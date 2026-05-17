@@ -47,6 +47,37 @@ newline db 13,10,'$'                                              ; moves output
 
 
 .code  
+                            ; main execution flow
+                            ; links all modules together
+main proc
+                            ; initializes data and controls execution
+mov ax,@data
+                            ; loads data segment address into ax
+mov ds,ax
+                            ; moves it to data segment register
+
+call displayMenu
+                            ; shows the initial menu on screen
+call getInput
+                            ; takes the user input and stores length
+call xorEncrypt
+                            ; encrypts the captured message
+call hideMessage
+                            ; hides the encrypted text into pixelArray
+call printArray
+                            ; prints the pixel values to the screen
+call extractMessage
+                            ; recovers hidden data from pixelArray
+call xorDecrypt
+                            ; reverses encryption to get final text
+
+mov ah,4ch
+                            ; DOS interrupt code to terminate program safely
+int 21h
+                            ; returns control to the operating system
+main endp
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                             ; hide message done 
                             ; 9th may,2026
                             ; syedareebkareem
