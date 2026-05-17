@@ -261,6 +261,64 @@ printLoop:
 
 printArray endp
 
+                            ; print 3-digit number logic
+                            ; converts 8-bit hex to ascii
+printNumber proc
+                            ; takes value in AL and prints it
+mov ah,0
+                            ; clears ah for division
+mov bl,100
+                            ; sets divisor to extract hundreds digit
+div bl
+                            ; ax divided by bl (al=quotient, ah=remainder)
+
+mov dl,al
+                            ; moves hundreds digit to dl
+add dl,48
+                            ; converts numeric value to ASCII character
+push ax
+                            ; saves the remainder (ah) for next step
+mov ah,02h
+                            ; DOS function to print a single character
+int 21h
+                            ; prints the hundreds digit
+pop ax
+                            ; restores the remainder into ax
+
+mov al,ah
+                            ; moves remainder into al for next division
+mov ah,0
+                            ; clears ah again
+mov bl,10
+                            ; sets divisor to extract tens digit
+div bl
+                            ; ax divided by bl (al=quotient, ah=remainder)
+
+mov dl,al
+                            ; moves tens digit to dl
+add dl,48
+                            ; converts numeric value to ASCII character
+push ax
+                            ; saves the final remainder (ones digit)
+mov ah,02h
+                            ; DOS function to print a single character
+int 21h
+                            ; prints the tens digit
+pop ax
+                            ; restores the ones digit
+
+mov dl,ah
+                            ; moves the final ones digit to dl
+add dl,48
+                            ; converts numeric value to ASCII character
+mov ah,02h
+                            ; DOS function to print a single character
+int 21h
+                            ; prints the ones digit
+
+ret
+                            ; returns back to printArray loop
+printNumber endp
 
 ;MUJEEB PART
 
@@ -417,3 +475,5 @@ decLoop:
                             ; return to main
 
 xorDecrypt endp
+end main
+                            ; marks end of file and sets entry point to main
