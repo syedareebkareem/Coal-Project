@@ -82,16 +82,40 @@ mov ah,0ah
 int 21h
                             ; user types password here
 
+lea ax,keyBuffer+2
+                            ; load address of actual password characters
+push ax
+                            ; push array address onto stack (1st parameter)
+mov al,messageLength
+mov ah,00h
+                            ; clear ah so ax only has the length
+push ax
+                            ; push count onto stack (2nd parameter)
 call xorEncrypt
-                            ; encrypts the captured message
+                            ; call subroutine
+
+
+
 call hideMessage
                             ; hides the encrypted text into pixelArray
 call printArray
                             ; prints the pixel values to the screen
 call extractMessage
                             ; recovers hidden data from pixelArray
+
+lea ax,keyBuffer+2
+                            ; load address of actual password characters again
+push ax
+                            ; push array address onto stack (1st parameter)
+mov al,messageLength
+mov ah,00h
+                            ; clear ah so ax only has the length
+push ax
+                            ; push count onto stack (2nd parameter)
 call xorDecrypt
-                            ; reverses encryption to get final text
+                            ; call subroutine
+
+
 
 
 lea dx, newline
