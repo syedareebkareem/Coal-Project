@@ -231,3 +231,158 @@ printLoop:
 printArray endp
 
 
+;MUJEEB PART
+
+; input and encryption done
+                            ; 17th may, 2026
+                            ; mujeeb ur rehman
+                           
+
+getInput proc
+                            ; this procedure takes input from user
+                            ; stores it in messageBuffer
+                            ; also saves the length in messageLength
+
+    lea dx,inputMsg
+                            ; dx points to the input prompt message
+    mov ah,09h
+                            ; DOS function to display string
+    int 21h
+                            ; prints the prompt on screen
+
+    lea dx,messageBuffer
+                            ; dx points to messageBuffer
+                            ; messageBuffer structure:
+                            ; byte 0 = max allowed characters (8)
+                            ; byte 1 = actual characters typed (filled by DOS)
+                            ; byte 2 onwards = the actual characters typed
+    mov ah,0ah
+                            ; DOS function for buffered keyboard input
+    int 21h
+                            ; user types here, DOS fills the buffer
+
+    mov al,messageBuffer+1
+                            ; byte at position 1 holds actual length typed
+    mov messageLength,al
+                            ; store it in messageLength for later use
+
+    ret
+                            ; return to main
+
+getInput endp
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                            ; input and encryption done
+                            ; mujeeb ur rehman
+                           
+
+xorEncrypt proc
+                            ; this procedure encrypts the message
+                            ; reads each character from messageBuffer
+                            ; XORs it with xorKey (05h)
+                            ; stores encrypted character in encryptedText
+                            ;
+                            ; how XOR encryption works:
+                            ; original char:  01000001  (letter A = 65)
+                            ; XOR key:        00000101  (key = 5)
+                            ; result:         01000100  (encrypted = 68)
+
+    mov cl,messageLength
+                            ; cl = number of characters to process
+    mov ch,00h
+                            ; ch = 0 so cx is correct for loop instruction
+                            ; loop uses cx as counter
+
+    lea si,messageBuffer+2
+                            ; si points to first actual character
+                            ; +2 because byte 0 = maxLen, byte 1 = actualLen
+                            ; byte 2 onwards = real characters
+
+    lea di,encryptedText
+                            ; di points to where we store encrypted characters
+
+encLoop:
+                            ; loop starts here
+                            ; processes one character per iteration
+
+    mov al,[si]
+                            ; al = current character from input buffer
+    xor al,xorKey
+                            ; al = al XOR 05h
+                            ; this encrypts the character
+    mov [di],al
+                            ; store encrypted character into encryptedText
+
+    inc si
+                            ; move to next input character
+    inc di
+                            ; move to next position in encrypted buffer
+
+    loop encLoop
+                            ; cx = cx - 1
+                            ; if cx is not zero go back to encLoop
+
+    mov byte ptr [di],'$'
+                            ; put dollar sign at end
+                            ; so DOS knows where the string ends
+
+    ret
+                            ; return to main
+
+xorEncrypt endp
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                            ; input and encryption done
+                            ; mujeeb ur rehman
+                            
+xorDecrypt proc
+                            ; this procedure decrypts the extracted message
+                            ; reads each character from extractedBuffer
+                            ; XORs it again with the SAME key (05h)
+                            ; this reverses the encryption
+                            ; stores result in finalMessage
+                            ;
+                            ; why XOR twice gives original:
+                            ; encrypt: A XOR key = B
+                            ; decrypt: B XOR key = A
+                            ; XOR with same key cancels itself
+
+    mov cl,messageLength
+                            ; cl = number of characters to decrypt
+    mov ch,00h
+                            ; ch = 0 so cx is correct for loop
+
+    lea si,extractedBuffer
+                            ; si points to extracted encrypted characters
+    lea di,finalMessage
+                            ; di points to where decrypted result will go
+
+decLoop:
+                            ; loop starts here
+                            ; processes one character per iteration
+
+    mov al,[si]
+                            ; al = current encrypted character
+    xor al,xorKey
+                            ; al = al XOR 05h
+                            ; same operation as encrypt = decrypts it
+    mov [di],al
+                            ; store decrypted character into finalMessage
+
+    inc si
+                            ; move to next encrypted character
+    inc di
+                            ; move to next position in final message
+
+    loop decLoop
+                            ; cx = cx - 1
+                            ; if cx is not zero go back to decLoop
+
+    mov byte ptr [di],'$'
+                            ; put dollar sign at end
+                            ; so DOS knows where the string ends
+
+    ret
+                            ; return to main
+
+xorDecrypt endp
