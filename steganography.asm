@@ -66,6 +66,22 @@ call displayMenu
                             ; shows the initial menu on screen
 call getInput
                             ; takes the user input and stores length
+
+lea dx,keyPrompt
+                            ; dx points to the password prompt message
+mov ah,09h
+                            ; dos function to display string
+int 21h
+                            ; prints the prompt on screen
+
+lea dx,keyBuffer
+                            ; dx points to password buffer
+mov ah,0ah
+                            ; dos function for buffered keyboard input
+                            
+int 21h
+                            ; user types password here
+
 call xorEncrypt
                             ; encrypts the captured message
 call hideMessage
