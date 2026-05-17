@@ -493,57 +493,66 @@ xorEncrypt endp
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                             ; input and encryption done
                             ; mujeeb ur rehman
+
+
                             
 xorDecrypt proc
-                            ; this procedure decrypts the extracted message
-                            ; reads each character from extractedBuffer
-                            ; XORs it again with the SAME key (05h)
-                            ; this reverses the encryption
-                            ; stores result in finalMessage
-                            ;
-                            ; why XOR twice gives original:
-                            ; encrypt: A XOR key = B
-                            ; decrypt: B XOR key = A
-                            ; XOR with same key cancels itself
+push bp
+                            ; save old value of bp
+mov bp,sp
+                            ; make bp our reference point for stack
+push ax
+push bx
+push cx
+push dx
+push si
+push di
+                            ; back up all registers so we dont destroy them
 
-    mov cl,messageLength
-                            ; cl = number of characters to decrypt
-    mov ch,00h
-                            ; ch = 0 so cx is correct for loop
+mov bx,[bp+6]
+                            ; STACK MAGIC: load password array address from stack into bx
+mov cx,[bp+4]
+                            ; STACK MAGIC: load count of elements from stack into cx
 
-    lea si,extractedBuffer
+lea si,extractedBuffer
                             ; si points to extracted encrypted characters
-    lea di,finalMessage
+lea di,finalMessage
                             ; di points to where decrypted result will go
 
 decLoop:
-                            ; loop starts here
-                            ; processes one character per iteration
-
-    mov al,[si]
-                            ; al = current encrypted character
-    xor al,xorKey
-                            ; al = al XOR 05h
-                            ; same operation as encrypt = decrypts it
-    mov [di],al
+                            ; loops each character
+mov al,[si]
+                            ; load current encrypted character
+mov dl,[bx]
+                            ; load one character from the dynamic password
+xor al,dl
+                            ; decrypt character using the same password character
+mov [di],al
                             ; store decrypted character into finalMessage
 
-    inc si
+inc si
                             ; move to next encrypted character
-    inc di
+inc di
                             ; move to next position in final message
+inc bx
+                            ; move to next password character
+loop decLoop
+                            ; cx decrements and cycle repeats
 
-    loop decLoop
-                            ; cx = cx - 1
-                            ; if cx is not zero go back to decLoop
+mov byte ptr [di],'$'
+                            ; put dollar sign at end of string
 
-    mov byte ptr [di],'$'
-                            ; put dollar sign at end
-                            ; so DOS knows where the string ends
-
-    ret
-                            ; return to main
-
+pop di
+pop si
+pop dx
+pop cx
+pop bx
+pop ax
+                            ; restore backed up registers in reverse order
+pop bp
+                            ; restore old value of bp
+ret 4
+                            ; go back and discard 4 bytes (2 parameters)
 xorDecrypt endp
 end main
                             ; marks end of file and sets entry point to main
