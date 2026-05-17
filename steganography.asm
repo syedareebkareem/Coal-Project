@@ -148,10 +148,12 @@ lea di,[pixelArray]
 mov cl,messageLength
 mov ch,00h
                             ; for looping of characters
-mov bl,00h
-                            ; has the bit sequence extracted
+
 extCharLoop:
                             ; RENAMED: was characterLoop
+mov bl,00h
+                            ; has the bit sequence extracted
+
 mov dl,8
                             ; counts the bits of one character
 mov bh,1
