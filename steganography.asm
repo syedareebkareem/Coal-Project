@@ -431,60 +431,63 @@ getInput endp
                             ; input and encryption done
                             ; mujeeb ur rehman
                            
-
 xorEncrypt proc
-                            ; this procedure encrypts the message
-                            ; reads each character from messageBuffer
-                            ; XORs it with xorKey (05h)
-                            ; stores encrypted character in encryptedText
-                            ;
-                            ; how XOR encryption works:
-                            ; original char:  01000001  (letter A = 65)
-                            ; XOR key:        00000101  (key = 5)
-                            ; result:         01000100  (encrypted = 68)
+push bp
+                            ; save old value of bp
+mov bp,sp
+                            ; make bp our reference point for stack
+push ax
+push bx
+push cx
+push dx
+push si
+push di
+                            ; back up all registers so we dont destroy them
 
-    mov cl,messageLength
-                            ; cl = number of characters to process
-    mov ch,00h
-                            ; ch = 0 so cx is correct for loop instruction
-                            ; loop uses cx as counter
+mov bx,[bp+6]
+                            ; STACK MAGIC: load password array address from stack into bx
+mov cx,[bp+4]
+                            ; STACK MAGIC: load count of elements from stack into cx
 
-    lea si,messageBuffer+2
-                            ; si points to first actual character
-                            ; +2 because byte 0 = maxLen, byte 1 = actualLen
-                            ; byte 2 onwards = real characters
-
-    lea di,encryptedText
+lea si,messageBuffer+2
+                            ; si points to first actual character of message
+lea di,encryptedText
                             ; di points to where we store encrypted characters
 
 encLoop:
-                            ; loop starts here
-                            ; processes one character per iteration
-
-    mov al,[si]
-                            ; al = current character from input buffer
-    xor al,xorKey
-                            ; al = al XOR 05h
-                            ; this encrypts the character
-    mov [di],al
+                            ; loops each character
+mov al,[si]
+                            ; load one character from message buffer
+mov dl,[bx]
+                            ; load one character from the dynamic password
+xor al,dl
+                            ; encrypt message character with password character
+mov [di],al
                             ; store encrypted character into encryptedText
 
-    inc si
-                            ; move to next input character
-    inc di
+inc si
+                            ; move to next message character
+inc di
                             ; move to next position in encrypted buffer
+inc bx
+                            ; move to next password character
+loop encLoop
+                            ; cx decrements and cycle repeats
 
-    loop encLoop
-                            ; cx = cx - 1
-                            ; if cx is not zero go back to encLoop
+mov byte ptr [di],'$'
+                            ; put dollar sign at end of string
 
-    mov byte ptr [di],'$'
-                            ; put dollar sign at end
-                            ; so DOS knows where the string ends
-
-    ret
-                            ; return to main
-
+pop di
+pop si
+pop dx
+pop cx
+pop bx
+pop ax
+                            ; restore backed up registers in reverse order
+pop bp
+                            ; restore old value of bp
+ret 4
+                            ; go back and discard 4 bytes (2 parameters)
 xorEncrypt endp
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
