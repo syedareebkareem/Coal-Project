@@ -15,10 +15,15 @@ finalMessage db 9,?,"$","$","$","$","$","$","$","$","$"
                             ; this will also hold 9 array characters as last character will hold the terminator $ which doesnt count
 messageLength db ?
                             ; we store message length here and db is used because we need to match register size too
-xorKey db 05h  ;
+;xorKey db 05h  ;
                             ;xorKey is used to encrypt the data
                             ;we might change it to perform dynamically if time remains 
+; now we are making it dynamic
 
+keyPrompt db 13,10,'Enter Password (MAX 8 CHARS): $'
+                            ; prompt asking user for dynamic encryption key
+keyBuffer db 9,?,9 DUP('$')
+                            ; buffer to store the dynamic password array
 
                             ; display data added
                             ; 11th may,2026
