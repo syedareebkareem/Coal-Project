@@ -40,6 +40,7 @@ pixelArray db 64 dup(200)
 
 titleMsg db 13,10,'===== SECURE MESSAGE SYSTEM =====',13,10,'$'   ; title shown at program start
 menuMsg db 13,10,'1. Start',13,10,'2. Exit',13,10,'Choice: $'     ; menu options shown to user
+inputMsg db 13,10,'Enter yoUr Message (MAX 8 CHARS): $'
 resultMsg db 13,10,'Recovered Message: $'                         ; label before showing extracted message
 space db ' $'                                                     ; prints space between pixel values
 newline db 13,10,'$'                                              ; moves output to next line
@@ -136,7 +137,6 @@ loop characterLoop
                             ; cl decrements and cycle repeats
 ret
 hideMessage endp
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 extractMessage proc
 lea si,[extractedBuffer]
@@ -150,12 +150,14 @@ mov ch,00h
                             ; for looping of characters
 mov bl,00h
                             ; has the bit sequence extracted
-characterLoop:
+extCharLoop:
+                            ; RENAMED: was characterLoop
 mov dl,8
                             ; counts the bits of one character
 mov bh,1
                             ; for masking and shl purpose
-bitLoop:
+extBitLoop:
+                            ; RENAMED: was bitLoop
 mov al,[di]
                             ; holds the first pixel element
 
@@ -174,20 +176,18 @@ inc di
                             ; moves one byte or next array element in pixelArray
 dec dl
                             ; makes sure 8 bits are counted 
-jnz bitLoop
+jnz extBitLoop
+                            ; RENAMED: jumps back to extBitLoop
                             ; checks whether 8 chracters are done or not
 mov [si],bl
                             ; replace the current byte of si with extracted bits
 inc si
                             ; increament si so we move one byte right in si
-loop characterLoop
+loop extCharLoop
+                            ; RENAMED: loops back to extCharLoop
 mov byte ptr [si],'$'
                             ; making sure termination is not overwritten by my program
 extractMessage endp
-
-
-
-
 
                   ; display menu done
                   ; 11th may,2026
