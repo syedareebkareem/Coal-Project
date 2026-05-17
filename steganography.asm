@@ -72,11 +72,31 @@ call extractMessage
 call xorDecrypt
                             ; reverses encryption to get final text
 
+
+lea dx, newline
+mov ah, 09h
+int 21h                     ; prints an empty line for neatness
+
+lea dx, resultMsg
+mov ah, 09h
+int 21h                     ; prints "Recovered Message: "
+
+lea dx, finalMessage
+mov ah, 09h
+int 21h                     ; prints the actual decrypted word (e.g., "areeb")
+
+lea dx, newline
+mov ah, 09h
+int 21h                     ; prints a final empty line
+;
+
+
 mov ah,4ch
                             ; DOS interrupt code to terminate program safely
 int 21h
                             ; returns control to the operating system
 main endp
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                             ; hide message done 
