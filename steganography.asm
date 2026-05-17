@@ -43,105 +43,124 @@ pixelArray db 64 dup(200)
                             ; mahrukh jamal
                             ; no editing required
 
-titleMsg db 13,10,'===== SECURE MESSAGE SYSTEM =====',13,10,'$'   ; title shown at program start
-menuMsg db 13,10,'1. Start',13,10,'2. Exit',13,10,'Choice: $'     ; menu options shown to user
-inputMsg db 13,10,'Enter yoUr Message (MAX 8 CHARS): $'
-resultMsg db 13,10,'Recovered Message: $'                         ; label before showing extracted message
-space db ' $'                                                     ; prints space between pixel values
-newline db 13,10,'$'                                              ; moves output to next line
 
-
+titleMsg db 13,10,'===== SECURE MESSAGE SYSTEM =====',13,10,'$'
+menuMsg db 13,10,'1. Send Cipher',13,10,'2. Receive Cipher',13,10,'3. Print Original',13,10,'4. Exit',13,10,'Choice: $'
+msgOrig db 13,10,'Original Message: $'
+msgEnc db 13,10,'Encrypted Message: $'
+inputMsg db 13,10,'Enter Message (MAX 8 CHARS): $'
+resultMsg db 13,10,'Recovered Message: $'
+space db ' $'
+newline db 13,10,'$'
 
 .code  
-                            ; main execution flow
-                            ; links all modules together
+                           ; main execution flow
+
 main proc
                             ; initializes data and controls execution
 mov ax,@data
-                            ; loads data segment address into ax
 mov ds,ax
-                            ; moves it to data segment register
 
+menuStart:
+                            ; loop back point for the menu
 call displayMenu
-                            ; shows the initial menu on screen
+                            ; al now holds the user choice (1, 2, 3, or 4)
+
+cmp al,'1'
+je optSend
+                            ; if 1, jump to send cipher
+
+cmp al,'2'
+je optReceive
+                            ; if 2, jump to receive cipher
+
+cmp al,'3'
+je optOriginal
+                            ; if 3, jump to print original
+
+jmp endProgram
+                            ; if anything else (like 4), exit program
+
+optSend:
 call getInput
-                            ; takes the user input and stores length
-
+                            ; takes the original message
 lea dx,keyPrompt
-                            ; dx points to the password prompt message
 mov ah,09h
-                            ; dos function to display string
 int 21h
-                            ; prints the prompt on screen
-
+                            ; prints password prompt
 lea dx,keyBuffer
-                            ; dx points to password buffer
 mov ah,0ah
-                            ; dos function for buffered keyboard input
-                            
 int 21h
-                            ; user types password here
-
+                            ; gets password from user
 lea ax,keyBuffer+2
-                            ; load address of actual password characters
 push ax
-                            ; push array address onto stack (1st parameter)
 mov al,messageLength
 mov ah,00h
-                            ; clear ah so ax only has the length
 push ax
-                            ; push count onto stack (2nd parameter)
+                            ; push parameters
 call xorEncrypt
-                            ; call subroutine
-
-
-
+                            ; encrypt the message
 call hideMessage
-                            ; hides the encrypted text into pixelArray
+                            ; hide in pixel array
 call printArray
-                            ; prints the pixel values to the screen
-call extractMessage
-                            ; recovers hidden data from pixelArray
+                            ; print the array
+jmp menuStart
+                            ; go back to main menu
 
+optReceive:
+call extractMessage
+                            ; pull hidden bits out of array
+lea dx,newline
+mov ah,09h
+int 21h
+lea dx,msgEnc
+mov ah,09h
+int 21h
+lea dx,extractedBuffer
+mov ah,09h
+int 21h
+                            ; print the raw encrypted characters
 lea ax,keyBuffer+2
-                            ; load address of actual password characters again
 push ax
-                            ; push array address onto stack (1st parameter)
 mov al,messageLength
 mov ah,00h
-                            ; clear ah so ax only has the length
 push ax
-                            ; push count onto stack (2nd parameter)
+                            ; push parameters
 call xorDecrypt
-                            ; call subroutine
+                            ; decrypt the text
+lea dx,newline
+mov ah,09h
+int 21h
+lea dx,resultMsg
+mov ah,09h
+int 21h
+lea dx,finalMessage
+mov ah,09h
+int 21h
+                            ; print recovered final message
+jmp menuStart
+                            ; go back to main menu
 
+optOriginal:
+lea dx,newline
+mov ah,09h
+int 21h
+lea dx,msgOrig
+mov ah,09h
+int 21h
+lea dx,messageBuffer+2
+mov ah,09h
+int 21h
+                            ; prints the original typed message
+jmp menuStart
+                            ; go back to main menu
 
-
-
-lea dx, newline
-mov ah, 09h
-int 21h                     ; prints an empty line for neatness
-
-lea dx, resultMsg
-mov ah, 09h
-int 21h                     ; prints "Recovered Message: "
-
-lea dx, finalMessage
-mov ah, 09h
-int 21h                     ; prints the actual decrypted word (e.g., "areeb")
-
-lea dx, newline
-mov ah, 09h
-int 21h                     ; prints a final empty line
-;
-
-
+endProgram:
 mov ah,4ch
                             ; DOS interrupt code to terminate program safely
 int 21h
                             ; returns control to the operating system
 main endp
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                             ; hide message done 
