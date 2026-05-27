@@ -1,171 +1,445 @@
-                            ; main code file
-.model small
+.model small                ;main code file
 .stack 100h
+
 .data
-messageBuffer db 8,?,"$","$","$","$","$","$","$","$"
-                            ; This messageBuffer is holding the input value a user might enter
-                            ; We did this to hold only 8 characters
-                            ; Dollar sign is the terminator
-                            ; if user enters Syed and enters
-                            ; the fifth character will act as terminator and stops the input before reaching 8th value
-encryptedText db 9,?,"$","$","$","$","$","$","$","$","$"
-                            ; this holds 9 array characters as last character will hold the terminator $ which doesnt count
-extractedBuffer db 9,?,"$","$","$","$","$","$","$","$","$"
-finalMessage db 9,?,"$","$","$","$","$","$","$","$","$"
-                            ; this will also hold 9 array characters as last character will hold the terminator $ which doesnt count
-messageLength db ?
-                            ; we store message length here and db is used because we need to match register size too
-;xorKey db 05h  ;
-                            ;xorKey is used to encrypt the data
-                            ;we might change it to perform dynamically if time remains 
-; now we are making it dynamic
 
-keyPrompt db 13,10,'Enter Password (MAX 8 CHARS): $'
-                            ; prompt asking user for dynamic encryption key
-keyBuffer db 9,?,9 DUP('$')
-                            ; buffer to store the dynamic password array
 
-                            ; display data added
-                            ; 11th may,2026
-                            ; mahrukh jamal
-                            ; no editing required
-caesarShift db ?
+messageBuffer   db 8,?,9 dup('$')
+                            ; original message typed by user
+                            ; byte 0 = max allowed chars
+                            ; byte 1 = actual chars typed
+                            ; byte 2+ = message itself
 
-hillMatrix db 1,2,3,7
-
-hillInvMatrix db 7,254,253,1
-
-pixelArray db 64 dup(200)
-                            ; we have 8 characters
-                            ; each character has 8 bits
-                            ; each bit is stored in 1 pixel
-                            ; 8(pixel) x 8(characters) = 64 pixels array
+messageLength   db ?
+                            ; actual length of user message
+                            ; saved once on first input
 
 
 
-                            ; display data added
-                            ; 11th may,2026
-                            ; mahrukh jamal
-                            ; no editing required
+xorEncrypted    db 9 dup('$')
+                            ; stores XOR encrypted output
+                            ; filled by xorEncrypt procedure
+
+hillEncrypted   db 9 dup('$')
+                            ; stores Hill Cipher encrypted output
+                            ; filled by hillEncrypt procedure
+
+caesarEncrypted db 9 dup('$')
+                            ; stores Caesar Cipher encrypted output
+                            ; filled by caesarEncrypt procedure
 
 
-titleMsg db 13,10,'===== SECURE MESSAGE SYSTEM =====',13,10,'$'
-menuMsg db 13,10,'1. Send Cipher',13,10,'2. Receive Cipher',13,10,'3. Print Original',13,10,'4. Exit',13,10,'Choice: $'
-msgOrig db 13,10,'Original Message: $'
-msgEnc db 13,10,'Encrypted Message: $'
-inputMsg db 13,10,'Enter Message (MAX 8 CHARS): $'
-resultMsg db 13,10,'Recovered Message: $'
-space db ' $'
-newline db 13,10,'$'
 
-.code  
-                           ; main execution flow
+xorPixels       db 64 dup(200)
+                            ; pixel array for XOR steganography
+                            ; each pixel holds 1 secret bit in LSB
+                            ; 8 chars x 8 bits = 64 pixels total
 
+hillPixels      db 64 dup(200)
+                            ; pixel array for Hill Cipher steganography
+                            ; same LSB structure as xorPixels
+
+caesarPixels    db 64 dup(200)
+                            ; pixel array for Caesar steganography
+                            ; same LSB structure as xorPixels
+
+
+
+xorExtracted    db 9 dup('$')
+                            ; extracted encrypted bytes from xorPixels
+                            ; fed into xorDecrypt
+
+hillExtracted   db 9 dup('$')
+                            ; extracted encrypted bytes from hillPixels
+                            ; fed into hillDecrypt
+
+caesarExtracted db 9 dup('$')
+                            ; extracted encrypted bytes from caesarPixels
+                            ; fed into caesarDecrypt
+
+finalMessage    db 9 dup('$')
+                            ; final recovered plaintext after decryption
+                            ; printed to screen on receive
+
+xorHiddenLen    db ?
+                            ; how many bytes are hidden in xorPixels
+                            ; same as messageLength for XOR
+
+hillHiddenLen   db ?
+                            ; how many bytes are hidden in hillPixels
+                            ; messageLength+1 if original length was odd
+
+caesarHiddenLen db ?
+                            ; how many bytes are hidden in caesarPixels
+                            ; same as messageLength for Caesar
+
+
+xorUsed         db 0
+                            ; 0 = XOR not yet encrypted
+                            ; 1 = XOR has been encrypted and hidden
+
+hillUsed        db 0
+                            ; 0 = Hill not yet encrypted
+                            ; 1 = Hill has been encrypted and hidden
+
+caesarUsed      db 0
+                            ; 0 = Caesar not yet encrypted
+                            ; 1 = Caesar has been encrypted and hidden
+
+messageEntered  db 0
+                            ; 0 = no message entered yet
+                            ; 1 = message has been entered this session
+
+
+keyPrompt       db 13,10,'  Enter Password (MAX 8 CHARS): $'
+                            ; shown before XOR password input
+
+caesarPrompt    db 13,10,'  Enter Shift Value (1-9): $'
+                            ; shown before Caesar shift input
+
+keyBuffer       db 8,?,9 dup('$')
+                            ; buffer for XOR password
+                            ; DOS 0Ah format
+
+caesarShiftBuf  db 2,?,3 dup('$')
+                            ; buffer for Caesar shift digit
+                            ; single digit so max 2 is enough
+
+caesarShift     db ?
+                            ; numeric shift value for Caesar
+                            ; parsed from caesarShiftBuf
+
+
+hillMatrix      db 1,2,3,7
+                            ; 2x2 encryption matrix
+                            ; [1 2]
+                            ; [3 7]
+                            ; det = 1*7 - 2*3 = 1, inverse exists mod 256
+
+hillInvMatrix   db 7,254,253,1
+                            ; 2x2 decryption matrix (inverse mod 256)
+                            ; [7  -2]  =>  [7  254]
+                            ; [-3  1]  =>  [253  1]
+
+
+titleTop        db 13,10
+                db '  +========================================+',13,10
+                db '  |     SECURE MESSAGE SYSTEM  v2.0        |',13,10
+                db '  +========================================+',13,10,'$'
+
+mainMenuStr     db 13,10
+                db '  +------ MAIN MENU ----------------------+',13,10
+                db '  |  1.  Encrypt a Message                |',13,10
+                db '  |  2.  Extract / Decrypt                |',13,10
+                db '  |  3.  Show Original Message            |',13,10
+                db '  |  4.  Exit                             |',13,10
+                db '  +---------------------------------------+',13,10
+                db '  Choice: $'
+
+encMenuStr      db 13,10
+                db '  +------ CHOOSE CIPHER ------------------+',13,10
+                db '  |  1.  XOR Cipher                       |',13,10
+                db '  |  2.  Hill Cipher                      |',13,10
+                db '  |  3.  Caesar Cipher                    |',13,10
+                db '  |  4.  Back to Main Menu                |',13,10
+                db '  +---------------------------------------+',13,10
+                db '  Choice: $'
+
+decMenuStr      db 13,10
+                db '  +------ CHOOSE CIPHER TO EXTRACT -------+',13,10
+                db '  |  1.  XOR Cipher                       |',13,10
+                db '  |  2.  Hill Cipher                      |',13,10
+                db '  |  3.  Caesar Cipher                    |',13,10
+                db '  |  4.  Back to Main Menu                |',13,10
+                db '  +---------------------------------------+',13,10
+                db '  Choice: $'
+
+anotherEncStr   db 13,10,'  Encrypt another? (Y/N): $'
+                            ; asked after each encryption
+                            ; Y loops back to cipher menu
+                            ; N returns to main menu
+
+anotherDecStr   db 13,10,'  Extract another? (Y/N): $'
+                            ; asked after each extraction
+                            ; Y loops back to cipher select
+                            ; N returns to main menu
+
+msgInput        db 13,10,'  Enter Message (MAX 8 CHARS): $'
+msgOrig         db 13,10,'  Original Message  : $'
+msgExtracted    db 13,10,'  Extracted (Enc)   : $'
+msgRecovered    db 13,10,'  Recovered Message : $'
+msgPixels       db 13,10,'  Pixel Values      : $'
+
+errNoMsg        db 13,10,'  [!] Enter a message first (use Encrypt).',13,10,'$'
+errNotUsed      db 13,10,'  [!] That cipher was not used for encryption.',13,10,'$'
+okDone          db 13,10,'  [OK] Done!',13,10,'$'
+divider         db 13,10,'  ----------------------------------------',13,10,'$'
+
+space           db ' $'
+newline         db 13,10,'$'
+
+
+
+.code
 main proc
-                            ; initializes data and controls execution
-mov ax,@data
-mov ds,ax
 
-menuStart:
-                            ; loop back point for the menu
-call displayMenu
-                            ; al now holds the user choice (1, 2, 3, or 4)
+    mov ax,@data
+    mov ds,ax
+                            ; point DS to our data segment
+                            ; must be done before touching any data labels
 
-cmp al,'1'
-je optSend
-                            ; if 1, jump to send cipher
+mainLoop:
 
-cmp al,'2'
-je optReceive
-                            ; if 2, jump to receive cipher
+    call showMainMenu
+                            ; draw the main menu and read one keypress
+                            ; result comes back in AL
 
-cmp al,'3'
-je optOriginal
-                            ; if 3, jump to print original
+    cmp al,'1'
+    je doEncryptFlow
+                            ; user wants to encrypt something
 
-jmp endProgram
-                            ; if anything else (like 4), exit program
+    cmp al,'2'
+    je doDecryptFlow
+                            ; user wants to extract and decrypt
 
-optSend:
-call getInput
-                            ; takes the original message
-lea dx,keyPrompt
-mov ah,09h
-int 21h
-                            ; prints password prompt
-lea dx,keyBuffer
-mov ah,0ah
-int 21h
-                            ; gets password from user
-lea ax,keyBuffer+2
-push ax
-mov al,messageLength
-mov ah,00h
-push ax
-                            ; push parameters
-call xorEncrypt
-                            ; encrypt the message
-call hideMessage
-                            ; hide in pixel array
-call printArray
-                            ; print the array
-jmp menuStart
-                            ; go back to main menu
+    cmp al,'3'
+    je doShowOriginal
+                            ; user wants to see the original message
 
-optReceive:
-call extractMessage
-                            ; pull hidden bits out of array
-lea dx,newline
-mov ah,09h
-int 21h
-lea dx,msgEnc
-mov ah,09h
-int 21h
-lea dx,extractedBuffer
-mov ah,09h
-int 21h
-                            ; print the raw encrypted characters
-lea ax,keyBuffer+2
-push ax
-mov al,messageLength
-mov ah,00h
-push ax
-                            ; push parameters
-call xorDecrypt
-                            ; decrypt the text
-lea dx,newline
-mov ah,09h
-int 21h
-lea dx,resultMsg
-mov ah,09h
-int 21h
-lea dx,finalMessage
-mov ah,09h
-int 21h
-                            ; print recovered final message
-jmp menuStart
-                            ; go back to main menu
+    cmp al,'4'
+    je doExit
+                            ; user wants to quit
 
-optOriginal:
-lea dx,newline
-mov ah,09h
-int 21h
-lea dx,msgOrig
-mov ah,09h
-int 21h
-lea dx,messageBuffer+2
-mov ah,09h
-int 21h
-                            ; prints the original typed message
-jmp menuStart
-                            ; go back to main menu
+    jmp mainLoop
+                            ; unknown key, just redraw menu
 
-endProgram:
-mov ah,4ch
-                            ; DOS interrupt code to terminate program safely
-int 21h
-                            ; returns control to the operating system
-main endp
+;------------------------------------------------------------
+
+doEncryptFlow:
+
+    cmp messageEntered,1
+    je encipherMenu
+                            ; message already in buffer, skip input
+
+    call getInput
+                            ; ask user to type their message
+                            ; fills messageBuffer and sets messageLength
+
+    mov messageEntered,1
+                            ; mark that message is now in memory
+
+encipherMenu:
+
+    call showEncMenu
+                            ; show cipher selection menu
+                            ; result in AL
+
+    cmp al,'1'
+    je runXorEncrypt
+                            ; do XOR encryption
+
+    cmp al,'2'
+    je runHillEncrypt
+                            ; do Hill encryption
+
+    cmp al,'3'
+    je runCaesarEncrypt
+                            ; do Caesar encryption
+
+    cmp al,'4'
+    jmp mainLoop
+                            ; back to main menu
+
+    jmp encipherMenu
+                            ; unknown key, redraw
+
+runXorEncrypt:
+
+    lea dx,keyPrompt
+    mov ah,09h
+    int 21h
+                            ; show password prompt
+
+    lea dx,keyBuffer
+    mov ah,0Ah
+    int 21h
+                            ; read password into keyBuffer using DOS buffered input
+
+    lea si,xorEncrypted
+    push si
+                            ; push destination buffer address
+
+    lea ax,keyBuffer+2
+    push ax
+                            ; push password start address
+
+    mov al,messageLength
+    mov ah,00h
+    push ax
+                            ; push message length
+
+    call xorEncrypt
+                            ; encrypt messageBuffer+2 into xorEncrypted
+
+    mov al,messageLength
+    mov xorHiddenLen,al
+                            ; XOR output length equals input length
+
+    lea si,xorEncrypted
+    lea di,xorPixels
+    mov cl,xorHiddenLen
+    call hideInPixels
+                            ; store encrypted bits into xorPixels
+
+    mov xorUsed,1
+                            ; mark XOR as done
+
+    lea dx,msgPixels
+    mov ah,09h
+    int 21h
+
+    lea si,xorPixels
+    mov cl,xorHiddenLen
+    call printPixels
+                            ; show the pixel array on screen
+
+    lea dx,okDone
+    mov ah,09h
+    int 21h
+
+    jmp askAnotherEnc
+
+runHillEncrypt:
+
+    mov al,messageLength
+    mov hillHiddenLen,al
+                            ; start with same length as message
+
+    test al,1
+    jz hillEncLenOK
+                            ; even length needs no padding
+
+    inc hillHiddenLen
+                            ; odd length needs one padding byte for Hill blocks
+
+hillEncLenOK:
+
+    lea si,hillEncrypted
+    push si
+                            ; push destination buffer
+
+    mov al,messageLength
+    mov ah,00h
+    push ax
+                            ; push original message length
+
+    call hillEncrypt
+                            ; encrypt messageBuffer+2 into hillEncrypted
+
+    lea si,hillEncrypted
+    lea di,hillPixels
+    mov cl,hillHiddenLen
+    call hideInPixels
+                            ; hide Hill encrypted bytes into hillPixels
+
+    mov hillUsed,1
+                            ; mark Hill as done
+
+    lea dx,msgPixels
+    mov ah,09h
+    int 21h
+
+    lea si,hillPixels
+    mov cl,hillHiddenLen
+    call printPixels
+                            ; print hillPixels
+
+    lea dx,okDone
+    mov ah,09h
+    int 21h
+
+    jmp askAnotherEnc
+
+runCaesarEncrypt:
+
+    lea dx,caesarPrompt
+    mov ah,09h
+    int 21h
+                            ; show shift prompt
+
+    lea dx,caesarShiftBuf
+    mov ah,0Ah
+    int 21h
+                            ; read shift digit from user
+
+    mov al,caesarShiftBuf+2
+    sub al,'0'
+                            ; convert ASCII digit to number
+                            ; subtract ASCII '0' to get actual digit value
+
+    mov caesarShift,al
+                            ; store numeric shift
+
+    lea si,caesarEncrypted
+    push si
+                            ; push destination buffer
+
+    mov al,messageLength
+    mov ah,00h
+    push ax
+                            ; push message length
+
+    call caesarEncrypt
+                            ; encrypt messageBuffer+2 into caesarEncrypted
+
+    mov al,messageLength
+    mov caesarHiddenLen,al
+                            ; Caesar output length equals input length
+
+    lea si,caesarEncrypted
+    lea di,caesarPixels
+    mov cl,caesarHiddenLen
+    call hideInPixels
+                            ; hide Caesar encrypted bytes into caesarPixels
+
+    mov caesarUsed,1
+                            ; mark Caesar as done
+
+    lea dx,msgPixels
+    mov ah,09h
+    int 21h
+
+    lea si,caesarPixels
+    mov cl,caesarHiddenLen
+    call printPixels
+                            ; print caesarPixels
+
+    lea dx,okDone
+    mov ah,09h
+    int 21h
+
+askAnotherEnc:
+
+    lea dx,anotherEncStr
+    mov ah,09h
+    int 21h
+                            ; ask if user wants to encrypt with another cipher
+
+    mov ah,01h
+    int 21h
+                            ; read Y or N into AL
+
+    cmp al,'Y'
+    je encipherMenu
+
+    cmp al,'y'
+    je encipherMenu
+                            ; lowercase y also accepted
+
+    jmp mainLoop
+                            ; anything else goes back to main
+
+;------------------------------------------------------------
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                             ; hide message done 
