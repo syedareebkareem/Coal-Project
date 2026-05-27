@@ -29,6 +29,11 @@ keyBuffer db 9,?,9 DUP('$')
                             ; 11th may,2026
                             ; mahrukh jamal
                             ; no editing required
+caesarShift db ?
+
+hillMatrix db 1,2,3,7
+
+hillInvMatrix db 7,254,253,1
 
 pixelArray db 64 dup(200)
                             ; we have 8 characters
@@ -573,5 +578,270 @@ pop bp
 ret 4
                             ; go back and discard 4 bytes (2 parameters)
 xorDecrypt endp
+
+hillEncrypt proc             ; hillEncrypt
+
+push bp
+mov bp,sp
+
+push ax
+push bx
+push cx
+push dx
+push si
+push di
+
+mov cx,[bp+4]
+
+lea si,messageBuffer+2
+lea di,encryptedText
+
+hillEncLoop:
+
+cmp cx,0
+je hillEncDone
+
+mov al,[si]
+
+inc si
+dec cx
+
+mov bl,0
+
+cmp cx,0
+je hillPairReady
+
+mov bl,[si]
+
+inc si
+dec cx
+
+hillPairReady:
+
+push cx
+
+mov cl,al
+mov ch,bl
+
+mov al,1
+mul cl
+mov dl,al
+
+mov al,3
+mul ch
+add dl,al
+
+mov al,2
+mul cl
+mov dh,al
+
+mov al,7
+mul ch
+add dh,al
+
+mov [di],dl
+inc di
+
+mov [di],dh
+inc di
+
+pop cx
+
+jmp hillEncLoop
+
+hillEncDone:
+
+mov byte ptr [di],'$'
+
+pop di
+pop si
+pop dx
+pop cx
+pop bx
+pop ax
+pop bp
+
+ret 2
+
+hillEncrypt endp
+
+
+
+; hillDecrypt
+
+
+hillDecrypt proc
+
+push bp
+mov bp,sp
+
+push ax
+push bx
+push cx
+push dx
+push si
+push di
+
+mov cx,[bp+4]
+
+lea si,extractedBuffer
+lea di,finalMessage
+
+hillDecLoop:
+
+cmp cx,0
+je hillDecDone
+
+mov al,[si]
+
+inc si
+dec cx
+
+mov bl,[si]
+
+inc si
+dec cx
+
+push cx
+
+mov cl,al
+mov ch,bl
+
+mov al,7
+mul cl
+mov dl,al
+
+mov al,253
+mul ch
+add dl,al
+
+mov al,254
+mul cl
+mov dh,al
+
+mov al,1
+mul ch
+add dh,al
+
+mov [di],dl
+inc di
+
+mov [di],dh
+inc di
+
+pop cx
+
+jmp hillDecLoop
+
+hillDecDone:
+
+mov byte ptr [di],'$'
+
+pop di
+pop si
+pop dx
+pop cx
+pop bx
+pop ax
+pop bp
+
+ret 2
+
+hillDecrypt endp       
+
+; caesarEncrypt
+
+
+caesarEncrypt proc
+
+push bp
+mov bp,sp
+
+push ax
+push bx
+push cx
+push si
+push di
+
+mov cx,[bp+4]
+
+lea si,messageBuffer+2
+lea di,encryptedText
+
+mov bl,caesarShift
+
+caesarEncLoop:
+
+mov al,[si]
+
+add al,bl
+
+mov [di],al
+
+inc si
+inc di
+
+loop caesarEncLoop
+
+mov byte ptr [di],'$'
+
+pop di
+pop si
+pop cx
+pop bx
+pop ax
+pop bp
+
+ret 2
+
+caesarEncrypt endp
+
+
+caesarDecrypt proc            ; caesarDecrypt
+
+push bp
+mov bp,sp
+
+push ax
+push bx
+push cx
+push si
+push di
+
+mov cx,[bp+4]
+
+lea si,extractedBuffer
+lea di,finalMessage
+
+mov bl,caesarShift
+
+caesarDecLoop:
+
+mov al,[si]
+
+sub al,bl
+
+mov [di],al
+
+inc si
+inc di
+
+loop caesarDecLoop
+
+mov byte ptr [di],'$'
+
+pop di
+pop si
+pop cx
+pop bx
+pop ax
+pop bp
+
+ret 2
+
+caesarDecrypt endp
+
+
 end main
+
                             ; marks end of file and sets entry point to main
