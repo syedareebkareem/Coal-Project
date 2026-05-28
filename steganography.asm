@@ -1522,3 +1522,125 @@ hillDecrypt endp
 ; stack params: [output buffer addr] [message length]
 ; shift value read from caesarShift
 ;============================================================
+caesarEncrypt proc
+
+    push bp
+    mov bp,sp
+
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+
+    mov di,[bp+6]
+                            ; DI = destination buffer
+
+    mov cx,[bp+4]
+                            ; CX = message length
+
+    lea si,messageBuffer+2
+                            ; SI = plaintext source
+
+    mov bl,caesarShift
+                            ; BL = shift amount
+
+caesarEncLoop:
+
+    mov al,[si]
+                            ; AL = current plaintext character
+
+    add al,bl
+                            ; shift forward by caesarShift
+                            ; byte wraps automatically on overflow
+
+    mov [di],al
+                            ; store encrypted character
+
+    inc si
+    inc di
+
+    loop caesarEncLoop
+
+    mov byte ptr [di],'$'
+                            ; terminate output
+
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    pop bp
+
+    ret 4
+                            ; remove 2 word params
+
+caesarEncrypt endp
+
+
+;============================================================
+; caesarDecrypt
+; stack params: [input buffer addr] [length] [output buffer addr]
+; shift value read from caesarShift
+;============================================================
+
+caesarDecrypt proc
+
+    push bp
+    mov bp,sp
+
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+
+    mov di,[bp+8]
+                            ; DI = output buffer (finalMessage)
+
+    mov cx,[bp+6]
+                            ; CX = message length
+
+    mov si,[bp+4]
+                            ; SI = input encrypted buffer
+
+    mov bl,caesarShift
+                            ; BL = shift to subtract
+
+caesarDecLoop:
+
+    mov al,[si]
+                            ; AL = current encrypted character
+
+    sub al,bl
+                            ; subtract shift to reverse encryption
+
+    mov [di],al
+                            ; store recovered character
+
+    inc si
+    inc di
+
+    loop caesarDecLoop
+
+    mov byte ptr [di],'$'
+                            ; terminate output
+
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    pop bp
+
+    ret 8
+                            ; remove 4 word params (input, length, output, unused slot)
+
+caesarDecrypt endp
+
+
+end main
