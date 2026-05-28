@@ -1,8 +1,13 @@
-.model small                ;main code file
+                                                         final code
+; main code file
+.model small
 .stack 100h
 
 .data
 
+;------------------------------------------------------------
+; MESSAGE BUFFERS
+;------------------------------------------------------------
 
 messageBuffer   db 8,?,9 dup('$')
                             ; original message typed by user
@@ -14,7 +19,9 @@ messageLength   db ?
                             ; actual length of user message
                             ; saved once on first input
 
-
+;------------------------------------------------------------
+; ENCRYPTED OUTPUT BUFFERS (one per cipher)
+;------------------------------------------------------------
 
 xorEncrypted    db 9 dup('$')
                             ; stores XOR encrypted output
@@ -28,7 +35,9 @@ caesarEncrypted db 9 dup('$')
                             ; stores Caesar Cipher encrypted output
                             ; filled by caesarEncrypt procedure
 
-
+;------------------------------------------------------------
+; PIXEL ARRAYS (one per cipher, 64 pixels each)
+;------------------------------------------------------------
 
 xorPixels       db 64 dup(200)
                             ; pixel array for XOR steganography
@@ -43,7 +52,9 @@ caesarPixels    db 64 dup(200)
                             ; pixel array for Caesar steganography
                             ; same LSB structure as xorPixels
 
-
+;------------------------------------------------------------
+; EXTRACTED BUFFERS (one per cipher)
+;------------------------------------------------------------
 
 xorExtracted    db 9 dup('$')
                             ; extracted encrypted bytes from xorPixels
@@ -57,9 +68,17 @@ caesarExtracted db 9 dup('$')
                             ; extracted encrypted bytes from caesarPixels
                             ; fed into caesarDecrypt
 
+;------------------------------------------------------------
+; FINAL DECRYPTED OUTPUT
+;------------------------------------------------------------
+
 finalMessage    db 9 dup('$')
                             ; final recovered plaintext after decryption
                             ; printed to screen on receive
+
+;------------------------------------------------------------
+; HIDDEN LENGTH TRACKERS (one per cipher)
+;------------------------------------------------------------
 
 xorHiddenLen    db ?
                             ; how many bytes are hidden in xorPixels
@@ -73,6 +92,9 @@ caesarHiddenLen db ?
                             ; how many bytes are hidden in caesarPixels
                             ; same as messageLength for Caesar
 
+;------------------------------------------------------------
+; CIPHER USED FLAGS
+;------------------------------------------------------------
 
 xorUsed         db 0
                             ; 0 = XOR not yet encrypted
@@ -90,6 +112,9 @@ messageEntered  db 0
                             ; 0 = no message entered yet
                             ; 1 = message has been entered this session
 
+;------------------------------------------------------------
+; KEY AND SHIFT INPUTS
+;------------------------------------------------------------
 
 keyPrompt       db 13,10,'  Enter Password (MAX 8 CHARS): $'
                             ; shown before XOR password input
@@ -109,6 +134,9 @@ caesarShift     db ?
                             ; numeric shift value for Caesar
                             ; parsed from caesarShiftBuf
 
+;------------------------------------------------------------
+; HILL CIPHER MATRICES
+;------------------------------------------------------------
 
 hillMatrix      db 1,2,3,7
                             ; 2x2 encryption matrix
@@ -121,6 +149,9 @@ hillInvMatrix   db 7,254,253,1
                             ; [7  -2]  =>  [7  254]
                             ; [-3  1]  =>  [253  1]
 
+;------------------------------------------------------------
+; DISPLAY STRINGS
+;------------------------------------------------------------
 
 titleTop        db 13,10
                 db '  +========================================+',13,10
@@ -178,9 +209,10 @@ divider         db 13,10,'  ----------------------------------------',13,10,'$'
 space           db ' $'
 newline         db 13,10,'$'
 
-
-
+;============================================================
 .code
+;============================================================
+
 main proc
 
     mov ax,@data
@@ -441,588 +473,1052 @@ askAnotherEnc:
 
 ;------------------------------------------------------------
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-                            ; hide message done 
-                            ; 9th may,2026
-                            ; syedareebkareem
-                            ; don't edit 
-hideMessage proc
-                            ; hides the message in the array
-  LEA si,encryptedText
-                            ; si is pointing towards encrytedText's first character.  
-  LEA di,pixelArray
-                            ; di is pointing to pixelArray's first value (200).
-  MOV cl,messageLength
-                            ; for instance message length is 4, loop will iterate to
-  MOV Ch,00h
-                            ; making sure cl works fine and not infected by this ch in looping
-characterLoop:
-                            ; loops each 8bit character
-mov bl,[si]
-                            ; moves si which holds first character of 8 bit into the bl
-mov dl,8
-                            ; this holds the total bit
-                            ; acts as counter
-bitLoop:
-                            ;inside each character there are 8 bits and each one should be looped to place each
-                            ;inside the one exact pixel
-mov al,[di]
-                            ; first pixel selected                          
-                            ; so now we have al that has first pixel
-                            ; dl has total bit length
-                            ; bl has first charcater
-AND al,11111110B
-                            ; no matter what the last bit is it will be zero
-                            ; no matter what the other 7 bits are they will retain their states
-mov bh,bl
-                            ; now bh has the first character of 8 bits
-                            ; bl will be needed for shr in future 
-and bh,00000001
-                            ; retains the last bit of that character
+doDecryptFlow:
 
-or al,bh
-                            ; makes sure that al is unchanged but the last bit is replaced with bh's last bit
+    cmp messageEntered,1
+    je decipherMenu
+                            ; message must have been entered first
 
-mov [di],al
-                            ; makes sure the new 8 bit is made and replaces the current pixel array element with encrypted character's last bit.
-                            ; now we move on to the next bit of the current character
-shr bl,1
-                            ; since we used the last bit now moving to second last bit to be placed in new array element
-                            ; we move the whole 8 bits to right, dropping the last bit 
-inc di
-                            ; points to next (200) element 
-dec dl
-                            ; this counts the character left to embed
-jnz bitLoop
-inc si
-                            ; if all bits are done we point to next character of encrypted text
-loop characterLoop
-                            ; cl decrements and cycle repeats
-ret
-hideMessage endp
-
-extractMessage proc
-lea si,[extractedBuffer]
-                            ; this will be used to hold the original message
-lea di,[pixelArray]
-                            ; decrypted pixel array
-
-
-mov cl,messageLength
-mov ch,00h
-                            ; for looping of characters
-
-extCharLoop:
-                            ; RENAMED: was characterLoop
-mov bl,00h
-                            ; has the bit sequence extracted
-
-mov dl,8
-                            ; counts the bits of one character
-mov bh,1
-                            ; for masking and shl purpose
-extBitLoop:
-                            ; RENAMED: was bitLoop
-mov al,[di]
-                            ; holds the first pixel element
-
-and al,00000001b
-                            ; retains the last bit only
-cmp al,1
-                            ; if last bit is 1 add it to bl 
-                            ; otherwise add 0 by default
-jnz defaultZero
-or bl,bh
-defaultZero:
-shl bh,1
-                            ; moving the bh to left
-                            ; so mask can be second last bit now
-inc di
-                            ; moves one byte or next array element in pixelArray
-dec dl
-                            ; makes sure 8 bits are counted 
-jnz extBitLoop
-                            ; RENAMED: jumps back to extBitLoop
-                            ; checks whether 8 chracters are done or not
-mov [si],bl
-                            ; replace the current byte of si with extracted bits
-inc si
-                            ; increament si so we move one byte right in si
-loop extCharLoop
-                            ; RENAMED: loops back to extCharLoop
-mov byte ptr [si],'$'
-                            ; making sure termination is not overwritten by my program
-extractMessage endp
-
-                  ; display menu done
-                  ; 11th may,2026
-                  ; mahrukh jamal
-                           
-displayMenu proc           
-
-    lea dx,titleMsg          ; dx points to title message
-    mov ah,09h               ; DOS function to display string
-    int 21h                  ; prints titlle on screen
-
-    lea dx,menuMsg           ; dx points to menu options
-    mov ah,09h               ; DOS function to display string
-    int 21h                  ; prints menu on screen
-
-    mov ah,01h               ; DOS function for single character input
-    int 21h                  ; reads user choice and stores it in AL
-
-    ret                      ; returns to main program
-
-displayMenu endp 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; display pixel array
-; 15th may,2026
-; mahrukh jamal
-; no editing required
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-printArray proc
-
-    lea si,pixelArray
-                            ; si points to first pixel
-
-    mov al,messageLength
-                            ; total characters
-
-    mov bl,8
-                            ; each character has 8 bits
-
-    mul bl
-                            ; total used pixels
-
-    mov cx,ax
-                            ; cx used for loop
-
-printLoop:
-
-    mov al,[si]
-                            ; current pixel value
-
-    call printNumber
-                            ; print pixel number
-
-    lea dx,space
+    lea dx,errNoMsg
     mov ah,09h
     int 21h
-                            ; prints space
+                            ; print error if no message was entered yet
 
-    inc si
-                            ; next pixel
+    jmp mainLoop
 
-    loop printLoop
+decipherMenu:
+
+    call showDecMenu
+                            ; show extraction cipher menu
+                            ; result in AL
+
+    cmp al,'1'
+    je runXorDecrypt
+                            ; extract and decrypt XOR
+
+    cmp al,'2'
+    je runHillDecrypt
+                            ; extract and decrypt Hill
+
+    cmp al,'3'
+    je runCaesarDecrypt
+                            ; extract and decrypt Caesar
+
+    cmp al,'4'
+    jmp mainLoop
+                            ; back to main
+
+    jmp decipherMenu
+
+runXorDecrypt:
+
+    cmp xorUsed,1
+    je xorDecOK
+                            ; only proceed if XOR was used for encryption
+
+    lea dx,errNotUsed
+    mov ah,09h
+    int 21h
+                            ; tell user XOR was not used
+
+    jmp askAnotherDec
+
+xorDecOK:
+
+    lea si,xorExtracted
+    lea di,xorPixels
+    mov cl,xorHiddenLen
+    call extractFromPixels
+                            ; pull encrypted bytes out of xorPixels into xorExtracted
+
+    lea dx,msgExtracted
+    mov ah,09h
+    int 21h
+
+    lea dx,xorExtracted
+    mov ah,09h
+    int 21h
+                            ; show the raw extracted encrypted text
+
+    lea dx,keyPrompt
+    mov ah,09h
+    int 21h
+
+    lea dx,keyBuffer
+    mov ah,0Ah
+    int 21h
+                            ; ask for password again for decryption
+
+    lea si,finalMessage
+    push si
+                            ; push output buffer
+
+    lea ax,keyBuffer+2
+    push ax
+                            ; push password
+
+    mov al,xorHiddenLen
+    mov ah,00h
+    push ax
+                            ; push length
+
+    lea si,xorExtracted
+    push si
+                            ; push extracted buffer as input source
+
+    call xorDecrypt
+                            ; decrypt xorExtracted into finalMessage
+
+    lea dx,msgRecovered
+    mov ah,09h
+    int 21h
+
+    lea dx,finalMessage
+    mov ah,09h
+    int 21h
+                            ; show the recovered original message
+
+    lea dx,okDone
+    mov ah,09h
+    int 21h
+
+    jmp askAnotherDec
+
+runHillDecrypt:
+
+    cmp hillUsed,1
+    je hillDecOK
+                            ; only proceed if Hill was actually used
+
+    lea dx,errNotUsed
+    mov ah,09h
+    int 21h
+
+    jmp askAnotherDec
+
+hillDecOK:
+
+    lea si,hillExtracted
+    lea di,hillPixels
+    mov cl,hillHiddenLen
+    call extractFromPixels
+                            ; pull encrypted bytes from hillPixels into hillExtracted
+
+    lea dx,msgExtracted
+    mov ah,09h
+    int 21h
+
+    lea dx,hillExtracted
+    mov ah,09h
+    int 21h
+                            ; show extracted encrypted text
+
+    lea si,finalMessage
+    push si
+                            ; push output buffer
+
+    mov al,hillHiddenLen
+    mov ah,00h
+    push ax
+                            ; push length including any padding
+
+    lea si,hillExtracted
+    push si
+                            ; push input source
+
+    call hillDecrypt
+                            ; decrypt hillExtracted into finalMessage
+
+    lea dx,msgRecovered
+    mov ah,09h
+    int 21h
+
+    lea dx,finalMessage
+    mov ah,09h
+    int 21h
+                            ; show recovered message
+
+    lea dx,okDone
+    mov ah,09h
+    int 21h
+
+    jmp askAnotherDec
+
+runCaesarDecrypt:
+
+    cmp caesarUsed,1
+    je caesarDecOK
+                            ; only proceed if Caesar was actually used
+
+    lea dx,errNotUsed
+    mov ah,09h
+    int 21h
+
+    jmp askAnotherDec
+
+caesarDecOK:
+
+    lea si,caesarExtracted
+    lea di,caesarPixels
+    mov cl,caesarHiddenLen
+    call extractFromPixels
+                            ; pull encrypted bytes from caesarPixels into caesarExtracted
+
+    lea dx,msgExtracted
+    mov ah,09h
+    int 21h
+
+    lea dx,caesarExtracted
+    mov ah,09h
+    int 21h
+                            ; show extracted encrypted text
+
+    lea dx,caesarPrompt
+    mov ah,09h
+    int 21h
+
+    lea dx,caesarShiftBuf
+    mov ah,0Ah
+    int 21h
+                            ; ask for shift value again
+
+    mov al,caesarShiftBuf+2
+    sub al,'0'
+                            ; parse shift digit
+
+    mov caesarShift,al
+
+    lea si,finalMessage
+    push si
+                            ; push output buffer
+
+    mov al,caesarHiddenLen
+    mov ah,00h
+    push ax
+                            ; push length
+
+    lea si,caesarExtracted
+    push si
+                            ; push input
+
+    call caesarDecrypt
+                            ; decrypt caesarExtracted into finalMessage
+
+    lea dx,msgRecovered
+    mov ah,09h
+    int 21h
+
+    lea dx,finalMessage
+    mov ah,09h
+    int 21h
+                            ; show recovered message
+
+    lea dx,okDone
+    mov ah,09h
+    int 21h
+
+askAnotherDec:
+
+    lea dx,anotherDecStr
+    mov ah,09h
+    int 21h
+                            ; ask if user wants to extract another cipher
+
+    mov ah,01h
+    int 21h
+                            ; read keypress
+
+    cmp al,'Y'
+    je decipherMenu
+
+    cmp al,'y'
+    je decipherMenu
+                            ; lowercase y accepted
+
+    jmp mainLoop
+                            ; anything else goes to main
+
+;------------------------------------------------------------
+
+doShowOriginal:
+
+    cmp messageEntered,1
+    je showOrig
+                            ; only show if message was entered
+
+    lea dx,errNoMsg
+    mov ah,09h
+    int 21h
+
+    jmp mainLoop
+
+showOrig:
 
     lea dx,newline
     mov ah,09h
     int 21h
-                            ; move to next line
+
+    lea dx,msgOrig
+    mov ah,09h
+    int 21h
+
+    lea dx,messageBuffer+2
+    mov ah,09h
+    int 21h
+                            ; print actual message starting from byte 2 of buffer
+
+    lea dx,newline
+    mov ah,09h
+    int 21h
+
+    jmp mainLoop
+
+;------------------------------------------------------------
+
+doExit:
+
+    mov ah,4Ch
+    int 21h
+                            ; clean DOS exit
+
+main endp
+
+
+;============================================================
+; showMainMenu
+; draws main menu box and reads one key
+; returns: AL = key pressed
+;============================================================
+
+showMainMenu proc
+
+    lea dx,titleTop
+    mov ah,09h
+    int 21h
+
+    lea dx,mainMenuStr
+    mov ah,09h
+    int 21h
+
+    mov ah,01h
+    int 21h
+                            ; read single keypress into AL
 
     ret
 
-printArray endp
+showMainMenu endp
 
-                            ; print 3-digit number logic
-                            ; converts 8-bit hex to ascii
-printNumber proc
-                            ; takes value in AL and prints it
-mov ah,0
-                            ; clears ah for division
-mov bl,100
-                            ; sets divisor to extract hundreds digit
-div bl
-                            ; ax divided by bl (al=quotient, ah=remainder)
 
-mov dl,al
-                            ; moves hundreds digit to dl
-add dl,48
-                            ; converts numeric value to ASCII character
-push ax
-                            ; saves the remainder (ah) for next step
-mov ah,02h
-                            ; DOS function to print a single character
-int 21h
-                            ; prints the hundreds digit
-pop ax
-                            ; restores the remainder into ax
+;============================================================
+; showEncMenu
+; draws cipher selection menu for encryption
+; returns: AL = key pressed
+;============================================================
 
-mov al,ah
-                            ; moves remainder into al for next division
-mov ah,0
-                            ; clears ah again
-mov bl,10
-                            ; sets divisor to extract tens digit
-div bl
-                            ; ax divided by bl (al=quotient, ah=remainder)
+showEncMenu proc
 
-mov dl,al
-                            ; moves tens digit to dl
-add dl,48
-                            ; converts numeric value to ASCII character
-push ax
-                            ; saves the final remainder (ones digit)
-mov ah,02h
-                            ; DOS function to print a single character
-int 21h
-                            ; prints the tens digit
-pop ax
-                            ; restores the ones digit
+    lea dx,divider
+    mov ah,09h
+    int 21h
 
-mov dl,ah
-                            ; moves the final ones digit to dl
-add dl,48
-                            ; converts numeric value to ASCII character
-mov ah,02h
-                            ; DOS function to print a single character
-int 21h
-                            ; prints the ones digit
+    lea dx,encMenuStr
+    mov ah,09h
+    int 21h
 
-ret
-                            ; returns back to printArray loop
-printNumber endp
+    mov ah,01h
+    int 21h
 
-;MUJEEB PART
+    ret
 
-; input and encryption done
-                            ; 17th may, 2026
-                            ; mujeeb ur rehman
-                           
+showEncMenu endp
+
+
+;============================================================
+; showDecMenu
+; draws cipher selection menu for extraction
+; returns: AL = key pressed
+;============================================================
+
+showDecMenu proc
+
+    lea dx,divider
+    mov ah,09h
+    int 21h
+
+    lea dx,decMenuStr
+    mov ah,09h
+    int 21h
+
+    mov ah,01h
+    int 21h
+
+    ret
+
+showDecMenu endp
+
+
+;============================================================
+; getInput
+; prompts user to type message
+; fills messageBuffer, sets messageLength
+;============================================================
 
 getInput proc
-                            ; this procedure takes input from user
-                            ; stores it in messageBuffer
-                            ; also saves the length in messageLength
 
-    lea dx,inputMsg
-                            ; dx points to the input prompt message
+    lea dx,msgInput
     mov ah,09h
-                            ; DOS function to display string
     int 21h
-                            ; prints the prompt on screen
 
     lea dx,messageBuffer
-                            ; dx points to messageBuffer
-                            ; messageBuffer structure:
-                            ; byte 0 = max allowed characters (8)
-                            ; byte 1 = actual characters typed (filled by DOS)
-                            ; byte 2 onwards = the actual characters typed
-    mov ah,0ah
-                            ; DOS function for buffered keyboard input
+    mov ah,0Ah
     int 21h
-                            ; user types here, DOS fills the buffer
+                            ; DOS buffered input
+                            ; byte 1 of messageBuffer gets actual char count
 
     mov al,messageBuffer+1
-                            ; byte at position 1 holds actual length typed
     mov messageLength,al
-                            ; store it in messageLength for later use
+                            ; save actual length to messageLength
+
+    lea si,messageBuffer+2
+    mov cl,messageLength
+    mov ch,00h
+    add si,cx
+    mov byte ptr [si],'$'
+                            ; place $ terminator after last character
+                            ; needed for DOS AH=09h print
 
     ret
-                            ; return to main
 
 getInput endp
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-                            ; input and encryption done
-                            ; mujeeb ur rehman
-                           
+
+;============================================================
+; hideInPixels
+; hides encrypted bytes into a pixel array using LSB
+; input: SI = source encrypted buffer
+;        DI = destination pixel array
+;        CL = number of bytes to hide
+;============================================================
+
+hideInPixels proc
+
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+                            ; save all registers
+
+    mov ch,00h
+                            ; CX = full byte count
+
+hideCharLoop:
+
+    mov bl,[si]
+                            ; BL = current encrypted byte
+
+    mov dl,8
+                            ; 8 bits per character
+
+hideBitLoop:
+
+    mov al,[di]
+                            ; AL = current pixel
+
+    and al,11111110B
+                            ; clear LSB of pixel
+
+    mov bh,bl
+    and bh,00000001B
+                            ; BH = LSB of current encrypted byte
+
+    or al,bh
+                            ; insert secret bit into pixel LSB
+
+    mov [di],al
+                            ; write modified pixel back
+
+    shr bl,1
+                            ; shift encrypted byte right, next bit into LSB
+
+    inc di
+                            ; next pixel
+
+    dec dl
+    jnz hideBitLoop
+                            ; repeat until all 8 bits are hidden
+
+    inc si
+                            ; next encrypted byte
+
+    loop hideCharLoop
+                            ; repeat for all bytes
+
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+
+    ret
+
+hideInPixels endp
+
+
+;============================================================
+; extractFromPixels
+; pulls hidden bytes out of pixel array LSBs
+; input: SI = destination extraction buffer
+;        DI = source pixel array
+;        CL = number of bytes to extract
+;============================================================
+
+extractFromPixels proc
+
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+                            ; save registers
+
+    mov ch,00h
+                            ; CX = full byte count
+
+extCharLoop:
+
+    mov bl,00h
+                            ; BL will accumulate one recovered byte
+
+    mov dl,8
+                            ; 8 bits to extract
+
+    mov bh,1
+                            ; BH = current bit mask, starts at 00000001
+
+extBitLoop:
+
+    mov al,[di]
+    and al,00000001B
+                            ; extract LSB from current pixel
+
+    cmp al,1
+    jne bitWasZero
+                            ; if bit is 0, nothing to set
+
+    or bl,bh
+                            ; set the correct bit in BL
+
+bitWasZero:
+
+    shl bh,1
+                            ; shift mask to next bit position
+
+    inc di
+                            ; next pixel
+
+    dec dl
+    jnz extBitLoop
+                            ; continue until all 8 bits are rebuilt
+
+    mov [si],bl
+                            ; store rebuilt byte into extraction buffer
+
+    inc si
+                            ; next extraction buffer slot
+
+    loop extCharLoop
+                            ; repeat for all bytes
+
+    mov byte ptr [si],'$'
+                            ; terminate extraction buffer
+
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+
+    ret
+
+extractFromPixels endp
+
+
+;============================================================
+; printPixels
+; prints decimal values of pixels used for hiding
+; input: SI = pixel array start
+;        CL = number of encrypted bytes hidden (not pixels)
+;============================================================
+
+printPixels proc
+
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+                            ; save registers
+
+    mov bl,cl
+                            ; BL = number of encrypted bytes
+
+    mov al,bl
+    mov ah,00h
+    mov bl,8
+    mul bl
+                            ; AX = total pixels = encrypted bytes x 8
+
+    mov cx,ax
+                            ; CX = pixel count for loop
+
+pixelPrintLoop:
+
+    mov al,[si]
+                            ; AL = current pixel value
+
+    call printByte
+                            ; print 3 digit decimal
+
+    lea dx,space
+    mov ah,09h
+    int 21h
+                            ; space between values
+
+    inc si
+
+    loop pixelPrintLoop
+
+    lea dx,newline
+    mov ah,09h
+    int 21h
+
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+
+    ret
+
+printPixels endp
+
+
+;============================================================
+; printByte
+; prints AL as a 3 digit decimal number
+;============================================================
+
+printByte proc
+
+    push ax
+    push bx
+    push dx
+                            ; save registers
+
+    mov ah,0
+    mov bl,100
+    div bl
+                            ; AL = hundreds digit, AH = remainder
+
+    mov dl,al
+    add dl,'0'
+    push ax
+    mov ah,02h
+    int 21h
+                            ; print hundreds digit
+
+    pop ax
+    mov al,ah
+    mov ah,0
+    mov bl,10
+    div bl
+                            ; AL = tens digit, AH = ones digit
+
+    mov dl,al
+    add dl,'0'
+    push ax
+    mov ah,02h
+    int 21h
+                            ; print tens digit
+
+    pop ax
+    mov dl,ah
+    add dl,'0'
+    mov ah,02h
+    int 21h
+                            ; print ones digit
+
+    pop dx
+    pop bx
+    pop ax
+
+    ret
+
+printByte endp
+
+
+;============================================================
+; xorEncrypt
+; stack params: [encrypted buffer addr] [password addr] [length]
+; output: result in the buffer passed on stack
+;============================================================
+
 xorEncrypt proc
-push bp
-                            ; save old value of bp
-mov bp,sp
-                            ; make bp our reference point for stack
-push ax
-push bx
-push cx
-push dx
-push si
-push di
-                            ; back up all registers so we dont destroy them
 
-mov bx,[bp+6]
-                            ; STACK MAGIC: load password array address from stack into bx
-mov cx,[bp+4]
-                            ; STACK MAGIC: load count of elements from stack into cx
+    push bp
+    mov bp,sp
 
-lea si,messageBuffer+2
-                            ; si points to first actual character of message
-lea di,encryptedText
-                            ; di points to where we store encrypted characters
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
 
-encLoop:
-                            ; loops each character
-mov al,[si]
-                            ; load one character from message buffer
-mov dl,[bx]
-                            ; load one character from the dynamic password
-xor al,dl
-                            ; encrypt message character with password character
-mov [di],al
-                            ; store encrypted character into encryptedText
+    mov di,[bp+8]
+                            ; DI = destination encrypted buffer address
 
-inc si
-                            ; move to next message character
-inc di
-                            ; move to next position in encrypted buffer
-inc bx
-                            ; move to next password character
-loop encLoop
-                            ; cx decrements and cycle repeats
+    mov bx,[bp+6]
+                            ; BX = password address
 
-mov byte ptr [di],'$'
-                            ; put dollar sign at end of string
+    mov cx,[bp+4]
+                            ; CX = message length
 
-pop di
-pop si
-pop dx
-pop cx
-pop bx
-pop ax
-                            ; restore backed up registers in reverse order
-pop bp
-                            ; restore old value of bp
-ret 4
-                            ; go back and discard 4 bytes (2 parameters)
+    lea si,messageBuffer+2
+                            ; SI = source message
+
+xorEncLoop:
+
+    mov al,[si]
+                            ; AL = current plaintext character
+
+    mov dl,[bx]
+                            ; DL = current password character
+
+    xor al,dl
+                            ; XOR encryption: al = plaintext XOR password
+
+    mov [di],al
+                            ; store into destination buffer
+
+    inc si
+    inc bx
+    inc di
+
+    loop xorEncLoop
+
+    mov byte ptr [di],'$'
+                            ; terminate encrypted buffer
+
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    pop bp
+
+    ret 6
+                            ; remove 3 word params from stack
+
 xorEncrypt endp
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-                            ; input and encryption done
-                            ; mujeeb ur rehman
 
+;============================================================
+; xorDecrypt
+; stack params: [input buffer addr] [password addr] [length] [output buf addr]
+; output: result in finalMessage
+;============================================================
 
-                            
 xorDecrypt proc
-push bp
-                            ; save old value of bp
-mov bp,sp
-                            ; make bp our reference point for stack
-push ax
-push bx
-push cx
-push dx
-push si
-push di
-                            ; back up all registers so we dont destroy them
 
-mov bx,[bp+6]
-                            ; STACK MAGIC: load password array address from stack into bx
-mov cx,[bp+4]
-                            ; STACK MAGIC: load count of elements from stack into cx
+    push bp
+    mov bp,sp
 
-lea si,extractedBuffer
-                            ; si points to extracted encrypted characters
-lea di,finalMessage
-                            ; di points to where decrypted result will go
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
 
-decLoop:
-                            ; loops each character
-mov al,[si]
-                            ; load current encrypted character
-mov dl,[bx]
-                            ; load one character from the dynamic password
-xor al,dl
-                            ; decrypt character using the same password character
-mov [di],al
-                            ; store decrypted character into finalMessage
+    mov di,[bp+10]
+                            ; DI = output buffer (finalMessage)
 
-inc si
-                            ; move to next encrypted character
-inc di
-                            ; move to next position in final message
-inc bx
-                            ; move to next password character
-loop decLoop
-                            ; cx decrements and cycle repeats
+    mov bx,[bp+8]
+                            ; BX = password address
 
-mov byte ptr [di],'$'
-                            ; put dollar sign at end of string
+    mov cx,[bp+6]
+                            ; CX = length
 
-pop di
-pop si
-pop dx
-pop cx
-pop bx
-pop ax
-                            ; restore backed up registers in reverse order
-pop bp
-                            ; restore old value of bp
-ret 4
-                            ; go back and discard 4 bytes (2 parameters)
+    mov si,[bp+4]
+                            ; SI = input encrypted buffer (xorExtracted)
+
+xorDecLoop:
+
+    mov al,[si]
+                            ; AL = current encrypted character
+
+    mov dl,[bx]
+                            ; DL = password character
+
+    xor al,dl
+                            ; XOR again to recover original
+
+    mov [di],al
+                            ; store in output buffer
+
+    inc si
+    inc bx
+    inc di
+
+    loop xorDecLoop
+
+    mov byte ptr [di],'$'
+                            ; terminate output
+
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    pop bp
+
+    ret 8
+                            ; remove 4 word params
+
 xorDecrypt endp
 
-hillEncrypt proc             ; hillEncrypt
 
-push bp
-mov bp,sp
+;============================================================
+; hillEncrypt
+; stack params: [output buffer addr] [message length]
+; reads from messageBuffer+2
+; writes to output buffer
+;============================================================
 
-push ax
-push bx
-push cx
-push dx
-push si
-push di
+hillEncrypt proc
 
-mov cx,[bp+4]
+    push bp
+    mov bp,sp
 
-lea si,messageBuffer+2
-lea di,encryptedText
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+
+    mov di,[bp+6]
+                            ; DI = destination buffer for Hill encrypted output
+
+    mov cx,[bp+4]
+                            ; CX = original message length
+
+    lea si,messageBuffer+2
+                            ; SI = plaintext source
 
 hillEncLoop:
 
-cmp cx,0
-je hillEncDone
+    cmp cx,0
+    je hillEncDone
 
-mov al,[si]
+    mov al,[si]
+                            ; AL = first character of pair, p1
 
-inc si
-dec cx
+    inc si
+    dec cx
 
-mov bl,0
+    mov bl,0
+                            ; BL = second character, default 0 for padding
 
-cmp cx,0
-je hillPairReady
+    cmp cx,0
+    je hillEncPairReady
 
-mov bl,[si]
+    mov bl,[si]
+                            ; BL = second character p2
 
-inc si
-dec cx
+    inc si
+    dec cx
 
-hillPairReady:
+hillEncPairReady:
 
-push cx
+    push cx
+                            ; save remaining count before using CX as temp
 
-mov cl,al
-mov ch,bl
+    mov cl,al
+    mov ch,bl
+                            ; CL = p1, CH = p2
 
-mov al,1
-mul cl
-mov dl,al
+    mov al,1
+    mul cl
+    mov dl,al
+                            ; DL = p1 * 1
 
-mov al,3
-mul ch
-add dl,al
+    mov al,3
+    mul ch
+    add dl,al
+                            ; DL = c1 = 1*p1 + 3*p2
 
-mov al,2
-mul cl
-mov dh,al
+    mov al,2
+    mul cl
+    mov dh,al
+                            ; DH = p1 * 2
 
-mov al,7
-mul ch
-add dh,al
+    mov al,7
+    mul ch
+    add dh,al
+                            ; DH = c2 = 2*p1 + 7*p2
 
-mov [di],dl
-inc di
+    mov [di],dl
+                            ; store c1 into output
 
-mov [di],dh
-inc di
+    inc di
 
-pop cx
+    mov [di],dh
+                            ; store c2 into output
 
-jmp hillEncLoop
+    inc di
+
+    pop cx
+                            ; restore remaining count
+
+    jmp hillEncLoop
 
 hillEncDone:
 
-mov byte ptr [di],'$'
+    mov byte ptr [di],'$'
+                            ; terminate output buffer
 
-pop di
-pop si
-pop dx
-pop cx
-pop bx
-pop ax
-pop bp
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    pop bp
 
-ret 2
+    ret 4
+                            ; remove 2 word params
 
 hillEncrypt endp
 
 
-
+;============================================================
 ; hillDecrypt
-
+; stack params: [input buffer addr] [hidden length] [output buffer addr]
+; inverse matrix [7 254 / 253 1] mod 256
+;============================================================
 
 hillDecrypt proc
 
-push bp
-mov bp,sp
+    push bp
+    mov bp,sp
 
-push ax
-push bx
-push cx
-push dx
-push si
-push di
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
 
-mov cx,[bp+4]
+    mov di,[bp+8]
+                            ; DI = output buffer (finalMessage)
 
-lea si,extractedBuffer
-lea di,finalMessage
+    mov cx,[bp+6]
+                            ; CX = hidden length (may include padding)
+
+    mov si,[bp+4]
+                            ; SI = input encrypted buffer
 
 hillDecLoop:
 
-cmp cx,0
-je hillDecDone
+    cmp cx,0
+    je hillDecDone
 
-mov al,[si]
+    mov al,[si]
+                            ; AL = c1 first encrypted byte
 
-inc si
-dec cx
+    inc si
+    dec cx
 
-mov bl,[si]
+    mov bl,[si]
+                            ; BL = c2 second encrypted byte
 
-inc si
-dec cx
+    inc si
+    dec cx
 
-push cx
+    push cx
 
-mov cl,al
-mov ch,bl
+    mov cl,al
+    mov ch,bl
+                            ; CL = c1, CH = c2
 
-mov al,7
-mul cl
-mov dl,al
+    mov al,7
+    mul cl
+    mov dl,al
+                            ; DL = c1 * 7
 
-mov al,253
-mul ch
-add dl,al
+    mov al,253
+    mul ch
+    add dl,al
+                            ; DL = p1 = 7*c1 + 253*c2  (mod 256 auto)
 
-mov al,254
-mul cl
-mov dh,al
+    mov al,254
+    mul cl
+    mov dh,al
+                            ; DH = c1 * 254
 
-mov al,1
-mul ch
-add dh,al
+    mov al,1
+    mul ch
+    add dh,al
+                            ; DH = p2 = 254*c1 + 1*c2  (mod 256 auto)
 
-mov [di],dl
-inc di
+    mov [di],dl
+                            ; store recovered p1
 
-mov [di],dh
-inc di
+    inc di
 
-pop cx
+    mov [di],dh
+                            ; store recovered p2
 
-jmp hillDecLoop
+    inc di
+
+    pop cx
+
+    jmp hillDecLoop
 
 hillDecDone:
 
-mov byte ptr [di],'$'
+    lea di,finalMessage
+    mov cl,messageLength
+    mov ch,00h
+    add di,cx
+    mov byte ptr [di],'$'
+                            ; trim $ to original length to strip padding char
 
-pop di
-pop si
-pop dx
-pop cx
-pop bx
-pop ax
-pop bp
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    pop bp
 
-ret 2
+    ret 6
+                            ; remove 3 word params
 
-hillDecrypt endp       
+hillDecrypt endp
 
-end main
 
-                            ; marks end of file and sets entry point to main
+;============================================================
+; caesarEncrypt
+; stack params: [output buffer addr] [message length]
+; shift value read from caesarShift
+;============================================================
